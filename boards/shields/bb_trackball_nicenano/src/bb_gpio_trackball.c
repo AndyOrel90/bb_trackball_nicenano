@@ -2,9 +2,9 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
-#include <zmk/pointing.h>
-#include <zmk/event_manager.h>
-#include <zmk/events/pointing_event.h>
+#include <dt-bindings/zmk/pointing.h>
+#include <dt-bindings/zmk/event_manager.h>
+#include <dt-bindings/zmk/events/pointing_event.h>
 
 LOG_MODULE_REGISTER(bb_gpio_trackball, LOG_LEVEL_INF);
 
