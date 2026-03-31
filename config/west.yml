@@ -1,14 +1,25 @@
 manifest:
-  defaults:
-    revision: v0.3
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
-    # Additional modules containing boards/shields/custom code can be listed here as well
-    # See https://docs.zephyrproject.org/3.2.0/develop/west/manifest.html#projects
+    # badjeff's analog input driver — used to decode the trackball's
+    # quadrature hall-effect signals as pointer X/Y events.
+    - name: badjeff
+      url-base: https://github.com/badjeff
+
   projects:
     - name: zmk
       remote: zmkfirmware
+      revision: main
       import: app/west.yml
+
+    # ZMK Analog Input Driver
+    # Lets you group GPIO/ADC channels into a single input event for the
+    # ZMK input subsystem. We use this to convert the four BB trackball
+    # hall-sensor lines into pointer X/Y deltas.
+    - name: zmk-analog-input-driver
+      remote: badjeff
+      revision: main
+
   self:
     path: config

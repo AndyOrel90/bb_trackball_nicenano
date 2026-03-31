@@ -8,11 +8,58 @@
 //#define ZMK_POINTING_DEFAULT_MOVE_VAL 1500  // default: 600
 //#define ZMK_POINTING_DEFAULT_SCRL_VAL 20    // default: 10
 //#include <dt-bindings/zmk/pointing.h>
-#include <dt-bindings/zmk/pointing.h>
-//#include <dt-bindings/zmk/pointing/pointing_device.h>
-#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/zmk/input_transform.h>
 
 
+/ {
+
+    /* ---------------------------------------------------------------------- *
+     * 1. BlackBerry Trackball — analog-input-driver node                     *
+     *                                                                         *
+     * The zmk-analog-input-driver treats pairs of "positive" and "negative"  *
+     * GPIO channels as a signed axis.  Each hall-sensor pulse is counted as  *
+     * +1 or -1 movement.  The driver emits input_event(REL_X) and           *
+     * input_event(REL_Y) which ZMK's pointing layer forwards as mouse motion.*
+     * ---------------------------------------------------------------------- */
+
+    trackball: trackball {
+        compatible = "zmk,analog-input";
+        status = "okay";
+
+        /*
+         * X-axis: right (+) and left (-)
+         * GPIO flags: GPIO_ACTIVE_LOW | GPIO_PULL_UP
+         * The hall sensors pull the line low when activated.
+         */
+        input-gpios
+            = <&gpio0 17  (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>  /* LFT → -X */
+            , <&gpio0 20 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>  /* RHT → +X */
+            , <&gpio0 6 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>  /* UP  → -Y */
+            , <&gpio0 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; /* DWN → +Y */
+
+        /*
+         * Axis mapping: the driver expects pairs in order
+         *   (neg-x, pos-x, neg-y, pos-y)
+         * so axes 0-1 map to X and axes 2-3 map to Y.
+         */
+        input-codes = <INPUT_REL_X INPUT_REL_X INPUT_REL_Y INPUT_REL_Y>;
+
+        /*
+         * Scale factor: multiply each raw pulse by this integer before
+         * emitting the event.  The BB trackball only produces ~9 pulses per
+         * full sweep, so multiply by 4–8 to get usable cursor speed.
+         * Tune to taste.
+         */
+        scale-multiplier = <6>;
+        scale-divisor    = <1>;
+
+        /*
+         * Emit events every time a GPIO edge is detected (no averaging).
+         * Fine-grained so the input-processors can further smooth/scale.
+         */
+        event-type = <INPUT_EV_REL>;
+    };
+/*
 / {
     blackberry_trackball: blackberry_trackball {
         compatible = "zmk,bb-gpio-trackball";
@@ -27,6 +74,7 @@
         move-step = <4>;
     };
 };
+*/
 
 / {
     chosen {
@@ -77,6 +125,3 @@
     , <&gpio0 31 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>
     ;
 };
-
-
-
