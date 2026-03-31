@@ -1,103 +1,126 @@
-#include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/logging/log.h>
+#include <zephyr/kernel.h>
+//#include <dt-bindings/zmk/pointing.h>
+// #include <zmk/pointing/pointing_device.h>
 
-#include <zmk/event_manager.h>
-#include <zmk/events/pointing_event.h>
+#define DT_DRV_COMPAT zmk_bb_gpio_trackball
 
-LOG_MODULE_REGISTER(bb_gpio_trackball, LOG_LEVEL_INF);
-
-struct bb_gpio_trackball_config {
+struct bb_cfg {
     struct gpio_dt_spec up;
     struct gpio_dt_spec down;
     struct gpio_dt_spec left;
     struct gpio_dt_spec right;
     struct gpio_dt_spec click;
-    uint16_t poll_ms;
+    int move_step;
 };
 
-struct bb_gpio_trackball_data {
-    int last_click;
+struct bb_data {
+    int8_t dx;
+    int8_t dy;
+    struct gpio_callback up_cb, down_cb, left_cb, right_cb, click_cb;
 };
 
-static void bb_gpio_trackball_poll(struct k_work *work);
+static const struct bb_cfg *cfg(const struct device *dev) { return dev->config; }
+static struct bb_data *data(const struct device *dev) { return dev->data; }
 
-static struct k_work_delayable poll_work;
+/* --- helpers --- */
 
-static int bb_gpio_trackball_init(const struct device *dev) {
-    const struct bb_gpio_trackball_config *cfg = dev->config;
+static void pulse_y(struct bb_data *d, int dir, int step) { d->dy += dir * step; }
 
-    gpio_pin_configure_dt(&cfg->up, GPIO_INPUT);
-    gpio_pin_configure_dt(&cfg->down, GPIO_INPUT);
-    gpio_pin_configure_dt(&cfg->left, GPIO_INPUT);
-    gpio_pin_configure_dt(&cfg->right, GPIO_INPUT);
-    gpio_pin_configure_dt(&cfg->click, GPIO_INPUT);
+static void pulse_x(struct bb_data *d, int dir, int step) { d->dx += dir * step; }
 
-    k_work_init_delayable(&poll_work, bb_gpio_trackball_poll);
-    k_work_schedule(&poll_work, K_MSEC(cfg->poll_ms));
+/* --- ISRs --- */
 
+#define MAKE_ISR(name, action)                                                                     \
+    static void name(const struct device *port, struct gpio_callback *cb, uint32_t pins) {         \
+        ARG_UNUSED(port);                                                                          \
+        ARG_UNUSED(pins);                                                                          \
+        const struct device *dev = DEVICE_DT_GET(DT_NODELABEL(blackberry_trackball));              \
+        struct bb_data *d = data(dev);                                                             \
+        const struct bb_cfg *c = cfg(dev);                                                         \
+        action;                                                                                    \
+    }
+
+MAKE_ISR(up_isr, pulse_y(d, +1, c->move_step));
+MAKE_ISR(down_isr, pulse_y(d, -1, c->move_step));
+MAKE_ISR(left_isr, pulse_x(d, -1, c->move_step));
+MAKE_ISR(right_isr, pulse_x(d, +1, c->move_step));
+
+//MAKE_ISR(click_isr, zmk_pointing_button_event(ZMK_POINTING_BUTTON_LEFT, true);
+ //        zmk_pointing_button_event(ZMK_POINTING_BUTTON_LEFT, false););
+
+/* --- periodic reporting --- */
+
+static void report_work(struct k_work *work) {
+    const struct device *dev = DEVICE_DT_GET(DT_NODELABEL(blackberry_trackball));
+    struct bb_data *d = data(dev);
+
+    if (d->dx || d->dy) {
+        zmk_pointing_move(d->dx, d->dy);
+        d->dx = 0;
+        d->dy = 0;
+    }
+}
+
+K_WORK_DEFINE(bb_report, report_work);
+
+static void timer_fn(struct k_timer *t) {
+    ARG_UNUSED(t);
+    k_work_submit(&bb_report);
+}
+
+K_TIMER_DEFINE(bb_timer, timer_fn, NULL);
+
+/* --- init --- */
+
+static int bb_init(const struct device *dev) {
+    const struct bb_cfg *c = cfg(dev);
+    struct bb_data *d = data(dev);
+
+    const struct gpio_dt_spec *pins[] = {&c->up, &c->down, &c->left, &c->right, &c->click};
+
+    struct gpio_callback *cbs[] = {&d->up_cb, &d->down_cb, &d->left_cb, &d->right_cb, &d->click_cb};
+
+    gpio_callback_handler_t handlers[] = {up_isr, down_isr, left_isr, right_isr, click_isr};
+
+    for (int i = 0; i < 5; i++) {
+        if (!device_is_ready(pins[i]->port)) {
+            return -ENODEV;
+        }
+
+        int ret = gpio_pin_configure_dt(pins[i], GPIO_INPUT);
+        if (ret < 0) {
+            return ret;
+        }
+
+        gpio_init_callback(cbs[i], handlers[i], BIT(pins[i]->pin));
+        ret = gpio_add_callback(pins[i]->port, cbs[i]);
+        if (ret < 0) {
+            return ret;
+        }
+
+        ret = gpio_pin_interrupt_configure_dt(pins[i], GPIO_INT_EDGE_FALLING);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    k_timer_start(&bb_timer, K_MSEC(5), K_MSEC(5));
     return 0;
 }
 
-static void bb_gpio_trackball_poll(struct k_work *work) {
-    const struct device *dev = DEVICE_DT_GET(DT_NODELABEL(bb_trackball));
-    const struct bb_gpio_trackball_config *cfg = dev->config;
-    struct bb_gpio_trackball_data *data = dev->data;
+#define BB_INIT(inst)                                                                              \
+    static const struct bb_cfg bb_cfg_##inst = {                                                   \
+        .up = GPIO_DT_SPEC_INST_GET(inst, up_gpios),                                               \
+        .down = GPIO_DT_SPEC_INST_GET(inst, down_gpios),                                           \
+        .left = GPIO_DT_SPEC_INST_GET(inst, left_gpios),                                           \
+        .right = GPIO_DT_SPEC_INST_GET(inst, right_gpios),                                         \
+        .click = GPIO_DT_SPEC_INST_GET(inst, click_gpios),                                         \
+        .move_step = DT_INST_PROP(inst, move_step),                                                \
+    };                                                                                             \
+    static struct bb_data bb_data_##inst;                                                          \
+    DEVICE_DT_INST_DEFINE(inst, bb_init, NULL, &bb_data_##inst, &bb_cfg_##inst, POST_KERNEL,       \
+                          CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, NULL);
 
-    int up = gpio_pin_get_dt(&cfg->up);
-    int down = gpio_pin_get_dt(&cfg->down);
-    int left = gpio_pin_get_dt(&cfg->left);
-    int right = gpio_pin_get_dt(&cfg->right);
-    int click = gpio_pin_get_dt(&cfg->click);
-
-    int dx = 0;
-    int dy = 0;
-
-    if (up == 0) dy += 1;
-    if (down == 0) dy -= 1;
-    if (left == 0) dx -= 1;
-    if (right == 0) dx += 1;
-
-    if (dx != 0 || dy != 0) {
-        struct zmk_pointing_event evt = {
-            .dx = dx,
-            .dy = dy,
-            .buttons = 0,
-        };
-        ZMK_EVENT_RAISE(new_zmk_pointing_event(&evt));
-    }
-
-    if (click == 0 && data->last_click != 0) {
-        struct zmk_pointing_event evt = {
-            .dx = 0,
-            .dy = 0,
-            .buttons = ZMK_MOUSE_BUTTON_LEFT,
-        };
-        ZMK_EVENT_RAISE(new_zmk_pointing_event(&evt));
-    }
-
-    data->last_click = click;
-
-    k_work_schedule(&poll_work, K_MSEC(cfg->poll_ms));
-}
-
-static const struct bb_gpio_trackball_config bb_gpio_trackball_cfg = {
-    .up = GPIO_DT_SPEC_GET(DT_NODELABEL(bb_trackball), up_gpios),
-    .down = GPIO_DT_SPEC_GET(DT_NODELABEL(bb_trackball), down_gpios),
-    .left = GPIO_DT_SPEC_GET(DT_NODELABEL(bb_trackball), left_gpios),
-    .right = GPIO_DT_SPEC_GET(DT_NODELABEL(bb_trackball), right_gpios),
-    .click = GPIO_DT_SPEC_GET(DT_NODELABEL(bb_trackball), click_gpios),
-    .poll_ms = DT_PROP(DT_NODELABEL(bb_trackball), poll_ms),
-};
-
-static struct bb_gpio_trackball_data bb_gpio_trackball_data;
-
-DEVICE_DT_DEFINE(DT_NODELABEL(bb_trackball),
-                 bb_gpio_trackball_init,
-                 NULL,
-                 &bb_gpio_trackball_data,
-                 &bb_gpio_trackball_cfg,
-                 POST_KERNEL,
-                 CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
-                 NULL);
+DT_INST_FOREACH_STATUS_OKAY(BB_INIT);
