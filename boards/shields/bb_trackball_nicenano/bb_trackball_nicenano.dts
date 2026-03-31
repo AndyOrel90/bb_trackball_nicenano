@@ -11,6 +11,21 @@
 #include <dt-bindings/zmk/pointing.h>
 
 / {
+    bb_trackball: blackberry_trackball {
+        compatible = "zmk,bb-gpio-trackball";
+        status = "okay";
+
+        up-gpios    = <&gpio0 6  (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+        down-gpios  = <&gpio0 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+        left-gpios  = <&gpio0 17 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+        right-gpios = <&gpio0 20 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+        click-gpios = <&gpio1 1 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+
+        move-step = <4>;
+    };
+};
+
+/ {
     chosen {
         zmk,kscan = &kscan0;
         zmk,matrix-transform = &default_transform;
@@ -62,18 +77,3 @@
 
 
 
-
-/ {
-    bb_trackball: blackberry_trackball {
-        compatible = "zmk,bb-gpio-trackball";
-        status = "okay";
-
-        up-gpios    = <&gpio0 6  (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-        down-gpios  = <&gpio0 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-        left-gpios  = <&gpio0 17 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-        right-gpios = <&gpio0 20 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-        click-gpios = <&gpio1 1 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-
-        move-step = <4>;
-    };
-};
