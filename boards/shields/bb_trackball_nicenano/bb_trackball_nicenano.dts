@@ -9,6 +9,8 @@
 //#define ZMK_POINTING_DEFAULT_SCRL_VAL 20    // default: 10
 //#include <dt-bindings/zmk/pointing.h>
 #include <dt-bindings/zmk/pointing.h>
+#include <dt-bindings/gpio/gpio.h>
+
 
 / {
     bb_trackball: blackberry_trackball {
