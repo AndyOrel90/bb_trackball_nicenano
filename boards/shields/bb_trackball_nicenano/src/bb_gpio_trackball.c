@@ -1,7 +1,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
-#include <dt-bindings/zmk/pointing.h>
+//#include <dt-bindings/zmk/pointing.h>
 // #include <zmk/pointing/pointing_device.h>
 
 #define DT_DRV_COMPAT zmk_bb_gpio_trackball
