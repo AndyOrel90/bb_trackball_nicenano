@@ -4,7 +4,7 @@
 //#include <dt-bindings/zmk/pointing.h>
 // #include <zmk/pointing/pointing_device.h>
 
-#define DT_DRV_COMPAT zmk_bb_gpio_trackball
+//#define DT_DRV_COMPAT zmk_bb_gpio_trackball
 
 struct bb_cfg {
     struct gpio_dt_spec up;
