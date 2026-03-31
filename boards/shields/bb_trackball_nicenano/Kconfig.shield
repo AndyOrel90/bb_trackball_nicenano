@@ -1,0 +1,5 @@
+# Copyright (c) 2022 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+config SHIELD_BB_TRACKBALL_NICENANO
+    def_bool $(shields_list_contains,bb_trackball_nicenano)

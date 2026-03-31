@@ -1,0 +1,6 @@
+if SHIELD_BB_TRACKBALL_NICENANO
+
+config ZMK_POINTING
+    def_bool y
+
+endif

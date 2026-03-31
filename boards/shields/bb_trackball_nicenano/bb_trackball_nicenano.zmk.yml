@@ -1,0 +1,5 @@
+identifier: bb_trackball_nicenano
+name: Blackberry Trackball Shield (nice!nano v2)
+type: shield
+requires:
+  - nice_nano_v2
