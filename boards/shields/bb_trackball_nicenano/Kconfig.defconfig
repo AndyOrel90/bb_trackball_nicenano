@@ -1,5 +1,21 @@
+# Kconfig.defconfig — auto-applied defaults when SHIELD_BB_TRACKBALL is selected
+
+if SHIELD_BB_TRACKBALL
+
+# Set the keyboard name that appears over BLE/USB HID
+config ZMK_KEYBOARD_NAME
+    default "BB Trackball Keyboard"
+
+# Enable ZMK pointing/mouse HID support
 config ZMK_POINTING
     default y
 
-#config ZMK_POINTING_DEVICE
-#    default y
+# Enable the analog input driver (badjeff's module)
+config ANALOG_INPUT
+    default y
+
+# GPIO support (needed for hall-sensor interrupt lines)
+config GPIO
+    default y
+
+endif # SHIELD_BB_TRACKBALL
