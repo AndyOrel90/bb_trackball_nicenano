@@ -59,6 +59,7 @@
          */
         event-type = <INPUT_EV_REL>;
     };
+};
 /*
 / {
     blackberry_trackball: blackberry_trackball {
