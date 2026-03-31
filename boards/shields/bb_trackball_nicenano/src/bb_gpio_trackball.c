@@ -2,9 +2,9 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
-#include <dt-bindings/zmk/pointing.h>
-#include <dt-bindings/zmk/event_manager.h>
-#include <dt-bindings/zmk/events/pointing_event.h>
+
+#include <zmk/event_manager.h>
+#include <zmk/events/pointing_event.h>
 
 LOG_MODULE_REGISTER(bb_gpio_trackball, LOG_LEVEL_INF);
 
@@ -14,17 +14,16 @@ struct bb_gpio_trackball_config {
     struct gpio_dt_spec left;
     struct gpio_dt_spec right;
     struct gpio_dt_spec click;
-    uint16_t debounce_ms;
     uint16_t poll_ms;
 };
 
 struct bb_gpio_trackball_data {
-    int last_up;
-    int last_down;
-    int last_left;
-    int last_right;
     int last_click;
 };
+
+static void bb_gpio_trackball_poll(struct k_work *work);
+
+static struct k_work_delayable poll_work;
 
 static int bb_gpio_trackball_init(const struct device *dev) {
     const struct bb_gpio_trackball_config *cfg = dev->config;
@@ -34,6 +33,9 @@ static int bb_gpio_trackball_init(const struct device *dev) {
     gpio_pin_configure_dt(&cfg->left, GPIO_INPUT);
     gpio_pin_configure_dt(&cfg->right, GPIO_INPUT);
     gpio_pin_configure_dt(&cfg->click, GPIO_INPUT);
+
+    k_work_init_delayable(&poll_work, bb_gpio_trackball_poll);
+    k_work_schedule(&poll_work, K_MSEC(cfg->poll_ms));
 
     return 0;
 }
@@ -77,16 +79,7 @@ static void bb_gpio_trackball_poll(struct k_work *work) {
 
     data->last_click = click;
 
-    k_work_schedule((struct k_work_delayable *)work, K_MSEC(cfg->poll_ms));
-}
-
-static struct k_work_delayable poll_work;
-
-static int bb_gpio_trackball_start(const struct device *dev) {
-    const struct bb_gpio_trackball_config *cfg = dev->config;
-    k_work_init_delayable(&poll_work, bb_gpio_trackball_poll);
     k_work_schedule(&poll_work, K_MSEC(cfg->poll_ms));
-    return 0;
 }
 
 static const struct bb_gpio_trackball_config bb_gpio_trackball_cfg = {
@@ -95,7 +88,6 @@ static const struct bb_gpio_trackball_config bb_gpio_trackball_cfg = {
     .left = GPIO_DT_SPEC_GET(DT_NODELABEL(bb_trackball), left_gpios),
     .right = GPIO_DT_SPEC_GET(DT_NODELABEL(bb_trackball), right_gpios),
     .click = GPIO_DT_SPEC_GET(DT_NODELABEL(bb_trackball), click_gpios),
-    .debounce_ms = DT_PROP(DT_NODELABEL(bb_trackball), debounce_ms),
     .poll_ms = DT_PROP(DT_NODELABEL(bb_trackball), poll_ms),
 };
 
@@ -108,4 +100,4 @@ DEVICE_DT_DEFINE(DT_NODELABEL(bb_trackball),
                  &bb_gpio_trackball_cfg,
                  POST_KERNEL,
                  CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
-                 bb_gpio_trackball_start);
+                 NULL);
