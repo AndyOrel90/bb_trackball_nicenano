@@ -13,7 +13,7 @@
 
 
 / {
-    bb_trackball: blackberry_trackball {
+    blackberry_trackball: blackberry_trackball {
         compatible = "zmk,bb-gpio-trackball";
         status = "okay";
 
